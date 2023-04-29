@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33414.496
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "EDP", "EDP\EDP.vbproj", "{9CABBBF9-E81C-4EB6-B362-E73550A3ACED}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9CABBBF9-E81C-4EB6-B362-E73550A3ACED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CABBBF9-E81C-4EB6-B362-E73550A3ACED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CABBBF9-E81C-4EB6-B362-E73550A3ACED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CABBBF9-E81C-4EB6-B362-E73550A3ACED}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {230DA089-9358-474F-A641-FE7880EC6C06}
+	EndGlobalSection
+EndGlobal
