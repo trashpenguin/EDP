@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, csv, json, re, sys
+import argparse, csv, json, os, re, sys, tempfile
+from pathlib import Path
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Iterable
@@ -78,11 +79,17 @@ def geocode_location(location: str) -> tuple[float, float]:
 
 def overpass_search(lat: float, lon: float, radius_m: int, keywords: list[str]) -> list[dict]:
     regex = "|".join(re.escape(k) for k in keywords)
+    regex = regex.replace("\\", "\\\\").replace('"', '\\"')
+    filters = {
+        ("heating", "air conditioning", "hvac"): ['["shop"="hvac"]', '["craft"="hvac"]'],
+        ("electrician", "electrical"): ['["craft"="electrician"]'],
+        ("excavating", "earthwork", "grading", "dirt work"): ['["craft"="excavator"]'],
+    }.get(tuple(keywords), [])
+    tagged = "\n".join(f"  nwr(around:{radius_m},{lat},{lon}){f};" for f in filters)
     query = f'''[out:json][timeout:60];
 (
   nwr(around:{radius_m},{lat},{lon})["name"~"{regex}",i];
-  nwr(around:{radius_m},{lat},{lon})["shop"~"hvac|trade",i];
-  nwr(around:{radius_m},{lat},{lon})["craft"~"electrician|plumber",i];
+{tagged}
 );
 out center tags;'''
     payload = f"data={quote_plus(query)}"
@@ -182,10 +189,22 @@ def unique_by_place(rows: Iterable[Contractor]) -> list[Contractor]:
     return out
 
 def collect(location: str, category: str, limit: int, radius_m: int, include_yelp: bool) -> list[Contractor]:
+    if limit <= 0 or radius_m <= 0:
+        raise ValueError("limit and radius_m must be positive")
     lat, lon = geocode_location(location)
     keywords = CATEGORY_QUERIES.get(category, [category])
     elements = overpass_search(lat, lon, radius_m, keywords)
-    rows = [tags_to_contractor(category, e) for e in elements if e.get("tags", {}).get("name")]
+    candidates = [e for e in elements if e.get("tags", {}).get("name")]
+    seen = set()
+    rows = []
+    for e in candidates:
+        identity = (e.get("type"), e.get("id"))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        rows.append(tags_to_contractor(category, e))
+        if len(rows) >= limit:
+            break
     if include_yelp:
         try:
             rows.extend(yelp_search(category, location, limit))
@@ -194,36 +213,78 @@ def collect(location: str, category: str, limit: int, radius_m: int, include_yel
     return unique_by_place(rows)[:limit]
 
 def write_csv(rows: list[Contractor], path: str) -> None:
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["category", "name", "phone", "email", "website", "address", "place_id"])
-        w.writeheader(); [w.writerow(r.__dict__) for r in rows]
+    destination = Path(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", newline="", encoding="utf-8",
+            dir=destination.absolute().parent, delete=False,
+        ) as f:
+            temporary = f.name
+            writer = csv.DictWriter(f, fieldnames=[
+                "category", "name", "phone", "email", "website", "address", "place_id"
+            ])
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row.__dict__)
+        os.replace(temporary, destination)
+        temporary = None
+    finally:
+        if temporary is not None:
+            os.unlink(temporary)
+
+
+def positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Contractor finder (free OSM/Nominatim/Overpass)")
     ap.add_argument("location", nargs="?", help="Search location (example: 'Warren, MI 48091')")
     ap.add_argument("--categories", nargs="+", default=["HVAC contractor", "Electrical contractor", "Excavating contractor"])
-    ap.add_argument("--per-category", type=int, default=30)
-    ap.add_argument("--radius-m", type=int, default=30000)
+    ap.add_argument("--per-category", type=positive_int, default=30)
+    ap.add_argument("--radius-m", type=positive_int, default=30000)
     ap.add_argument("--include-yelp", action="store_true", help="Also scrape contractor candidates from Yelp search results")
     ap.add_argument("--output", default="contractors.csv")
     a = ap.parse_args()
+    if a.location is not None:
+        a.location = a.location.strip()
     if not a.location:
-        a.location = input("Enter location (example: Warren, MI 48091): ").strip()
+        try:
+            a.location = input("Enter location (example: Warren, MI 48091): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("ERROR: location is required.", file=sys.stderr)
+            return 2
         if not a.location:
             print("ERROR: location is required.", file=sys.stderr)
             return 2
 
     rows=[]
+    failed = False
     for c in a.categories:
         print(f"Searching {c} ...")
         try:
             got = collect(a.location, c, a.per_category, a.radius_m, a.include_yelp)
         except Exception as e:
             print(f"  error: {e}", file=sys.stderr)
+            failed = True
             got = []
         print(f"  found {len(got)}")
         rows.extend(got)
-    write_csv(rows, a.output)
+    if failed:
+        print("ERROR: search incomplete; existing output preserved.", file=sys.stderr)
+        return 1
+    try:
+        write_csv(rows, a.output)
+    except OSError as e:
+        print(f"ERROR: could not write output: {e}", file=sys.stderr)
+        return 1
     print(f"Wrote {len(rows)} rows to {a.output}")
     return 0
 

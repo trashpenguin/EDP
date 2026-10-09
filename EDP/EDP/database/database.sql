@@ -38,7 +38,7 @@ CREATE TABLE `categories` (
 
 LOCK TABLES `categories` WRITE;
 /*!40000 ALTER TABLE `categories` DISABLE KEYS */;
-INSERT INTO `categories` VALUES (1,'Electronics','Devices that use electricity for their main functionality'),(2,'Gaming','Products related to video games and consoles'),(3,'Smart Home','Devices that automate or control home functions like lighting and temperature'),(4,'Computers','Electronic devices used for data processing and storage'),(5,'Tablets','Mobile computing devices with touchscreen displays');
+INSERT INTO `categories` VALUES (1,'Electronics','Devices that use electricity for their main functionality'),(2,'Gaming','products related to video games and consoles'),(3,'Smart Home','Devices that automate or control home functions like lighting and temperature'),(4,'Computers','Electronic devices used for data processing and storage'),(5,'Tablets','Mobile computing devices with touchscreen displays');
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -112,14 +112,6 @@ UNLOCK TABLES;
 /*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `insert_orderdetails_trigger` AFTER INSERT ON `orderdetails` FOR EACH ROW BEGIN
-    -- Increment the product's units in stock when a new order detail is added
-    UPDATE Products
-    SET UnitsInStock = UnitsInStock - NEW.Quantity
-    WHERE ProductID = NEW.ProductID;
-END */;;
-DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
@@ -132,14 +124,6 @@ DELIMITER ;
 /*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `update_orderdetails_trigger` AFTER UPDATE ON `orderdetails` FOR EACH ROW BEGIN
-    -- Update the product's units in stock when an existing order detail is updated
-    UPDATE Products
-    SET UnitsInStock = UnitsInStock + OLD.Quantity - NEW.Quantity
-    WHERE ProductID = NEW.ProductID;
-END */;;
-DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
@@ -152,14 +136,6 @@ DELIMITER ;
 /*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `delete_orderdetails_trigger` AFTER DELETE ON `orderdetails` FOR EACH ROW BEGIN
-    -- Restore the product's units in stock when an order detail is deleted
-    UPDATE Products
-    SET UnitsInStock = UnitsInStock + OLD.Quantity
-    WHERE ProductID = OLD.ProductID;
-END */;;
-DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
@@ -279,7 +255,7 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `idUsers` int NOT NULL,
   `username` varchar(45) DEFAULT NULL,
-  `password` varchar(45) DEFAULT NULL,
+  `password` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`idUsers`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -290,7 +266,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'user1','1234'),(2,'user2','1234'),(3,'user3','1234');
+-- Provision users with scripts/set_user_password.py; no default passwords.
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -301,26 +277,7 @@ UNLOCK TABLES;
 --
 -- Dumping routines for database 'db'
 --
-/*!50003 DROP FUNCTION IF EXISTS `GetCustomerDiscount` */;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-CREATE DEFINER=`root`@`localhost` FUNCTION `GetCustomerDiscount`(customer_id INT) RETURNS decimal(10,2)
-    DETERMINISTIC
-BEGIN
-    DECLARE discount DECIMAL(10, 2);
-    SELECT IFNULL(MAX(Discount), 0) INTO discount
-    FROM Orders
-    WHERE CustomerID = customer_id;
-    RETURN discount;
-END ;;
-DELIMITER ;
+-- No discount routine: the orders schema does not model discounts.
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
@@ -338,8 +295,8 @@ DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetCategoryRevenue`(IN category_id INT, OUT revenue DECIMAL(10, 2))
 BEGIN
     SELECT SUM(od.Quantity * od.UnitPrice) INTO revenue
-    FROM OrderDetails od
-    INNER JOIN Products p ON od.ProductID = p.ProductID
+    FROM orderdetails od
+    INNER JOIN products p ON od.ProductID = p.ProductID
     WHERE p.CategoryID = category_id;
 END ;;
 DELIMITER ;

@@ -1,119 +1,125 @@
-﻿Imports System.IO
+Imports System.IO
+Imports System.Diagnostics
+Imports System.Globalization
+Imports CsvHelper
+Imports CsvHelper.Configuration
 Imports MySql.Data.MySqlClient
-Imports System.Windows.Forms
-Imports System.Data.SqlClient
-Imports System.Data.OleDb
-Imports System.Reflection
+
 Public Class Form4
-
-    Private connectionString As String = "server=localhost;port=3306;user id=root;password=1234;database=db"
-    Private conn As MySqlConnection = Nothing
-    Private backupFilePath As String = ""
-
-    Private Sub MainForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' Initialize database connection
-        conn = New MySqlConnection(connectionString)
-        Try
-            conn.Open()
-        Catch ex As Exception
-            MessageBox.Show("Failed to connect to database: " & ex.Message)
-        End Try
+    Private Sub OpenChild(child As Form)
+        child.StartPosition = FormStartPosition.Manual
+        child.DesktopLocation = Me.DesktopLocation
+        child.Show()
+        Me.Close()
     End Sub
 
-
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        Dim form2 As New Form2
-        form2.StartPosition = FormStartPosition.Manual
-        form2.DesktopLocation = Me.DesktopLocation
-        form2.Show()
-        Me.Close()
+        OpenChild(New Form2())
     End Sub
 
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        Dim form3 As New Form3
-        Form2.StartPosition = FormStartPosition.Manual
-        form3.DesktopLocation = Me.DesktopLocation
-        form3.Show()
-        Me.Close()
+        OpenChild(New Form3())
     End Sub
 
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        Dim form5 As New Form5
-        Form2.StartPosition = FormStartPosition.Manual
-        form5.DesktopLocation = Me.DesktopLocation
-        form5.Show()
-        Me.Close()
+        OpenChild(New Form5())
     End Sub
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
-        Me.Hide() 'hide form4
         Form1.Show()
+        Me.Close()
     End Sub
 
-    Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
-        ' Prompt user to select backup file location
-        Dim saveFileDialog As New SaveFileDialog()
-        saveFileDialog.Filter = "SQL files (*.sql)|*.sql|All files (*.*)|*.*"
-        saveFileDialog.RestoreDirectory = True
-        If saveFileDialog.ShowDialog() = DialogResult.OK Then
-            backupFilePath = saveFileDialog.FileName
-
-            ' Perform database backup
-            Dim command As MySqlCommand = conn.CreateCommand()
-            command.CommandText = "mysqldump --user=root --password=1234 --databases db > """ & backupFilePath & """"
+    Private Async Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
+        Using dialog As New SaveFileDialog()
+            dialog.Filter = "SQL files (*.sql)|*.sql"
+            If dialog.ShowDialog() <> DialogResult.OK Then Return
+            Dim temporary = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dialog.FileName)), Guid.NewGuid().ToString("N") & ".sql")
+            Button5.Enabled = False
             Try
-                Dim process As New Process()
-                process.StartInfo.FileName = "cmd.exe"
-                process.StartInfo.Arguments = "/c " & command.CommandText
-                process.StartInfo.UseShellExecute = False
-                process.StartInfo.RedirectStandardOutput = True
-                process.StartInfo.RedirectStandardError = True
-                process.Start()
-                process.WaitForExit()
+                Dim value = Environment.GetEnvironmentVariable("EDP_DB_CONNECTION")
+                If String.IsNullOrWhiteSpace(value) Then Throw New InvalidOperationException("Set EDP_DB_CONNECTION before starting the application.")
+                Dim settings As New MySqlConnectionStringBuilder(value)
+                Dim info As New ProcessStartInfo("mysqldump")
+                info.UseShellExecute = False
+                info.CreateNoWindow = True
+                info.RedirectStandardOutput = True
+                info.RedirectStandardError = True
+                info.ArgumentList.Add("--host=" & settings.Server)
+                info.ArgumentList.Add("--port=" & settings.Port.ToString(CultureInfo.InvariantCulture))
+                info.ArgumentList.Add("--user=" & settings.UserID)
+                info.ArgumentList.Add("--single-transaction")
+                info.ArgumentList.Add("--routines")
+                info.ArgumentList.Add("--triggers")
+                info.ArgumentList.Add("--result-file=" & temporary)
+                info.ArgumentList.Add("--databases")
+                info.ArgumentList.Add(settings.Database)
+                ' Keep the password out of the command line.
+                info.Environment("MYSQL_PWD") = settings.Password
+                Using process As New Process()
+                    process.StartInfo = info
+                    process.Start()
+                    Dim output = process.StandardOutput.ReadToEndAsync()
+                    Dim errors = process.StandardError.ReadToEndAsync()
+                    Await process.WaitForExitAsync()
+                    Await output
+                    Dim errorText = Await errors
+                    If process.ExitCode <> 0 Then Throw New IOException("mysqldump failed: " & errorText)
+                End Using
+                If Not File.Exists(temporary) OrElse New FileInfo(temporary).Length = 0 Then
+                    Throw New IOException("mysqldump produced an empty backup.")
+                End If
+                File.Move(temporary, dialog.FileName, True)
                 MessageBox.Show("Database backup completed successfully.")
             Catch ex As Exception
-                MessageBox.Show("Failed to perform database backup: " & ex.Message)
+                MessageBox.Show("Backup failed: " & ex.Message)
+            Finally
+                Button5.Enabled = True
+                Try
+                    If File.Exists(temporary) Then File.Delete(temporary)
+                Catch ex As IOException
+                    MessageBox.Show("Could not remove temporary backup: " & temporary)
+                Catch ex As UnauthorizedAccessException
+                    MessageBox.Show("Could not remove temporary backup: " & temporary)
+                End Try
             End Try
-        End If
+        End Using
     End Sub
 
-
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
-        ' Prompt user to select CSV file
-        Dim openFileDialog As New OpenFileDialog()
-        openFileDialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*"
-        openFileDialog.RestoreDirectory = True
-        If openFileDialog.ShowDialog() = DialogResult.OK Then
-            ' Read CSV file into a DataTable
-            Dim dataTable As New DataTable()
-            Using reader As New StreamReader(openFileDialog.FileName)
-                Dim line As String = reader.ReadLine()
-                Dim headers As String() = line.Split(",")
-                For Each header As String In headers
-                    dataTable.Columns.Add(New DataColumn(header))
-                Next
-                While Not reader.EndOfStream
-                    line = reader.ReadLine()
-                    Dim values As String() = line.Split(",")
-                    Dim row As DataRow = dataTable.NewRow()
-                    For i As Integer = 0 To headers.Length - 1
-                        row(i) = values(i)
+        Using dialog As New OpenFileDialog()
+            dialog.Filter = "CSV files (*.csv)|*.csv"
+            If dialog.ShowDialog() <> DialogResult.OK Then Return
+            Try
+                Dim table As New DataTable()
+                Dim configuration As New CsvConfiguration(CultureInfo.InvariantCulture)
+                configuration.DetectColumnCountChanges = True
+                Using reader As New StreamReader(dialog.FileName),
+                      csv As New CsvReader(reader, configuration)
+                    If Not csv.Read() Then Throw New InvalidDataException("The CSV file is empty.")
+                    csv.ReadHeader()
+                    For Each header In csv.HeaderRecord
+                        If String.IsNullOrWhiteSpace(header) OrElse table.Columns.Contains(header) Then
+                            Throw New InvalidDataException("CSV headers must be nonempty and unique.")
+                        End If
+                        table.Columns.Add(header)
                     Next
-                    dataTable.Rows.Add(row)
-                End While
-            End Using
-
-            ' Display DataTable in DataGridView
-            DataGridView2.DataSource = dataTable
-        End If
+                    While csv.Read()
+                        Dim row = table.NewRow()
+                        For i As Integer = 0 To table.Columns.Count - 1
+                            row(i) = csv.GetField(i)
+                        Next
+                        table.Rows.Add(row)
+                    End While
+                End Using
+                DataGridView2.DataSource = table
+            Catch ex As Exception
+                MessageBox.Show("CSV import failed: " & ex.Message)
+            End Try
+        End Using
     End Sub
 
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
-        Dim form6 As New Form6
-        Form2.StartPosition = FormStartPosition.Manual
-        Form6.DesktopLocation = Me.DesktopLocation
-        form6.Show()
-        Me.Close()
+        OpenChild(New Form6())
     End Sub
 End Class
-

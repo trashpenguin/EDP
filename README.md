@@ -1,121 +1,112 @@
-# EDP – Event Driven Programming Final Project
+# EDP
 
-*A hands-on demonstration of reactive, event-based systems using Visual Basic .NET*
+A Windows Forms customer/product application written in Visual Basic, with a
+separate Python command-line contractor finder.
 
----
+## Windows application
 
-## 📚 Table of Contents
+Requirements: Windows, Visual Studio 2022 with the .NET desktop workload and
+.NET 6 SDK, MySQL 8, and Python 3.10 or newer for password provisioning.
+Excel must be installed to use Excel export; it is not required to build.
+mysqldump must be on PATH to use database backup.
 
-- [About the Project](#about-the-project)
-- [✨ Features](#-features)
-- [🛠️ Tech Stack](#️-tech-stack)
-- [🚀 Getting Started](#-getting-started)
-- [📁 Project Structure](#-project-structure)
-- [💡 Usage](#-usage)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+Open EDP/EDP.sln and build, or run:
 
----
-
-## About the Project
-
-This repository contains the final project for an **Event Driven Programming** course. It showcases the implementation of reactive, event-based systems where the program flow is determined by events such as user actions, sensor outputs, or message passing.
-
-The project emphasizes:
-
-- **Loose coupling** between components
-- **Asynchronous** event handling
-- **Responsive** UI design patterns
-
----
-
-## ✨ Features
-
-- 🎯 **Event-Driven Architecture** – Central event loop with custom event handlers
-- 🔧 **Modular Design** – Separated event producers, consumers, and dispatchers
-- ⚡ **Asynchronous Processing** – Non-blocking execution for long-running tasks
-- 🖥️ **GUI Integration** – User interface events drive application logic
-- 🔌 **Extensible** – Easy to add new event types and listeners
-- 📡 **Multicast Delegates** – Multiple handlers respond to the same event
-
----
-
-## 🛠️ Tech Stack
-
-[![Visual Basic .NET](https://img.shields.io/badge/Visual%20Basic%20.NET-512BD4?logo=dotnet&logoColor=white)](https://learn.microsoft.com/en-us/dotnet/visual-basic/)
-[![.NET Framework](https://img.shields.io/badge/.NET%20Framework-512BD4?logo=dotnet&logoColor=white)]
-[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)]
-
-| Technology | Purpose |
-|------------|---------|
-| **Visual Basic .NET** | Primary language with .NET event model and WinForms/WPF handlers |
-| .NET Framework / .NET Core | Runtime and event infrastructure |
-
----
-
-## 🚀 Getting Started
-
-Follow these instructions to get a copy of the project up and running locally.
-
-### Prerequisites
-
-- **Windows OS** (recommended) – The project targets .NET Framework / WinForms
-- **Visual Studio** (2019 or later) with **.NET desktop development** workload
-- Basic knowledge of events, delegates, and UI programming
-
-### Installation & Running
-
-```bash
-# Clone the repository
-git clone https://github.com/trashpenguin/EDP.git
-cd EDP
+```powershell
+dotnet build EDP/EDP/EDP.vbproj --configuration Release
 ```
 
-1. **Open the solution** in Visual Studio
-2. **Build the project** (`Ctrl + Shift + B`)
-3. **Run the application** (`F5`)
+### Database setup
 
----
+For a **new, disposable database**, import EDP/EDP/database/database.sql as a
+database administrator. This dump drops and recreates tables; do not import
+it over a database containing records you need to keep.
 
-## 📁 Project Structure
+For an **existing database**, back it up first, then apply
+EDP/EDP/database/migrations/001_secure_login.sql as an administrator.
+This migration preserves customer/product/order records, widens password storage,
+and disables existing plaintext passwords. Each affected user needs a password
+reset before signing in.
 
+Inventory triggers and GetCustomerDiscount were removed because this application
+and schema have no stock or discount fields. The migration drops these invalid
+routines instead of inventing stock quantities. GetCategoryRevenue and the report
+views remain available.
+
+No default login accounts or passwords are included. On a fresh database,
+create an account as the administrator (choose an unused numeric ID):
+
+```sql
+INSERT INTO db.users (idUsers, username, password) VALUES (1, 'admin', NULL);
 ```
-EDP/
-├── EDP/
-│   ├── Form1.vb           # Main form / event handlers
-│   ├── Program.vb         # Application entry point
-│   ├── ...                # Additional modules / classes
-├── .gitignore
-└── README.md
+
+Generate password reset SQL. The password is prompted twice and never appears in
+command-line arguments:
+
+```powershell
+python scripts/set_user_password.py 1
 ```
 
----
+Execute the resulting UPDATE statement as the database administrator.
+The application verifies salted PBKDF2-SHA256 hashes with 600,000 iterations;
+it does not accept plaintext passwords.
 
-## 💡 Usage
+Create a restricted application database account using a unique password:
 
-Once the application runs:
+```sql
+CREATE USER 'edp_app'@'localhost' IDENTIFIED BY 'replace-with-a-unique-password';
+GRANT SELECT ON db.users TO 'edp_app'@'localhost';
+GRANT SELECT, INSERT ON db.customers TO 'edp_app'@'localhost';
+GRANT SELECT, INSERT ON db.products TO 'edp_app'@'localhost';
+GRANT SELECT ON db.ordersbycustomer TO 'edp_app'@'localhost';
+```
 
-1. Click buttons, type into text boxes, or trigger custom events
-2. The system logs or displays event information (e.g., "Button Click Event raised")
-3. Observe how different code parts respond to the same event via multicast delegates
+Set EDP_DB_CONNECTION in the environment of the application/Visual Studio before
+launching it. For example, in PowerShell (replace the placeholder):
 
----
+```powershell
+$env:EDP_DB_CONNECTION = 'Server=localhost;Port=3306;Database=db;User ID=edp_app;Password=your-unique-password;'
+```
 
-## 🤝 Contributing
+Backups use the configured account and report failures without replacing an
+existing backup. A backup account needs additional read/SHOW VIEW/TRIGGER and,
+depending on MySQL's configuration, PROCESS and routine metadata privileges.
+Use an account provisioned by your database administrator for backups.
+mysqldump receives its password through the child process environment, not its
+command line. Protect exported SQL files: they contain customer records and
+password hashes.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Change the previously committed database/login passwords wherever they were
+reused. Changing current source files does not remove them from Git history.
+Previously committed executables/installers contain the old implementation;
+build from current source rather than running those artifacts.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Contractor finder
 
----
+Python 3.10+; no third-party packages are needed.
 
-## 📄 License
+```powershell
+python scripts/contractor_gui.py 'Warren, MI 48091' --per-category 30 --output contractors.csv
+```
 
-This project is for **educational purposes** as part of a final assignment. Please consult your instructor before reusing any code.
+Without a location, the launcher prompts for one. Empty input or unavailable
+stdin exits with status 2. Radius and per-category limits must be positive.
 
----
-*Made with ❤️ as a Final Project in Event Driven Programming*
+Categories default to HVAC, electrical, and excavating contractors. Each uses
+its own OSM tag filters and name keywords. Geocoding currently restricts results
+to the United States. OSM coverage and email extraction can be incomplete;
+review leads before using them. --include-yelp optionally adds scraped candidates.
+
+If any category fails, the command exits with status 1 and preserves existing
+output. Successful exports replace the file only after a complete temporary CSV
+has been written. A successful search with no matches produces a header-only CSV.
+
+## Checks
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+GitHub Actions runs Python regression tests, a Windows application build, and
+a MySQL 8 schema/migration smoke test. GUI interaction, installed Excel automation,
+and live provider availability still require manual verification.
