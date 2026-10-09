@@ -1,0 +1,60 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m py_compile scripts/contractor_search.py scripts/contractor_gui.py scripts/set_user_password.py
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+      - run: dotnet build EDP/EDP/EDP.vbproj --configuration Release
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python tests/write_password_fixture.py
+      - run: dotnet run --project tests/SecurityChecks/SecurityChecks.vbproj -- tests/password-fixture.txt
+  mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pci-only-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_PWD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - run: mysql -h 127.0.0.1 -u root < EDP/EDP/database/database.sql
+      - run: mysql -h 127.0.0.1 -u root < EDP/EDP/database/migrations/001_secure_login.sql
+      - name: Check order detail changes and schema
+        run: |
+          mysql -h 127.0.0.1 -u root db <<'SQL'
+          INSERT INTO orderdetails VALUES (999,1,1,1,1099.99);
+          UPDATE orderdetails SET ProductID=2, Quantity=2 WHERE OrderDetailID=999;
+          DELETE FROM orderdetails WHERE OrderDetailID=999;
+          SELECT * FROM ordersbycustomer LIMIT 1;
+          SELECT * FROM productsales LIMIT 1;
+          CALL GetCategoryRevenue(1, @revenue);
+          SQL
+          test "$(mysql -h 127.0.0.1 -u root -N -e 'SELECT COUNT(*) FROM db.users WHERE password IS NOT NULL')" = "0"

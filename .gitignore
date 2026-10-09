@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/Setup1/Debug/
+**/Setup1/Release/
+.vs/
+*.user
+__pycache__/
+*.pyc
+contractors.csv
+.env
