@@ -1,7 +1,6 @@
 # EDP
 
-A Windows Forms customer/product application written in Visual Basic, with a
-separate Python command-line contractor finder.
+A Windows Forms customer/product application written in Visual Basic.
 
 ## Windows application
 
@@ -81,32 +80,13 @@ reused. Changing current source files does not remove them from Git history.
 Previously committed executables/installers contain the old implementation;
 build from current source rather than running those artifacts.
 
-## Contractor finder
-
-Python 3.10+; no third-party packages are needed.
-
-```powershell
-python scripts/contractor_gui.py 'Warren, MI 48091' --per-category 30 --output contractors.csv
-```
-
-Without a location, the launcher prompts for one. Empty input or unavailable
-stdin exits with status 2. Radius and per-category limits must be positive.
-
-Categories default to HVAC, electrical, and excavating contractors. Each uses
-its own OSM tag filters and name keywords. Geocoding currently restricts results
-to the United States. OSM coverage and email extraction can be incomplete;
-review leads before using them. --include-yelp optionally adds scraped candidates.
-
-If any category fails, the command exits with status 1 and preserves existing
-output. Successful exports replace the file only after a complete temporary CSV
-has been written. A successful search with no matches produces a header-only CSV.
-
 ## Checks
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-GitHub Actions runs Python regression tests, a Windows application build, and
-a MySQL 8 schema/migration smoke test. GUI interaction, installed Excel automation,
-and live provider availability still require manual verification.
+GitHub Actions checks the password provisioning script, builds the Windows application,
+verifies password hashing, and runs a MySQL 8 schema/migration smoke test.
+GUI interaction, installed Excel automation, and backup permissions still require
+manual verification.
